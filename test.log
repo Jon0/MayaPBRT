@@ -1,0 +1,41 @@
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (Web2C 2013) (format=pdflatex 2014.6.21)  12 AUG 2014 16:52
+entering extended mode
+ restricted \write18 enabled.
+ %&-line parsing enabled.
+**/u/students/remnanjona/git/MayaPBRT/test.py
+(/u/students/remnanjona/git/MayaPBRT/test.py
+LaTeX2e <2011/06/27>
+Babel <v3.8l> and hyphenation patterns for english, dumylang, nohyphenation, uk
+rainian, turkish, swedish, spanish, slovenian, slovak, serbian, russian, romani
+an, portuguese, polish, bokmal, nynorsk, latin, italian, irish, indonesian, ice
+landic, hungarian, monogreek, greek, german, ngerman, french, finnish, estonian
+, esperanto, dutch, danish, czech, croatian, catalan, bulgarian, basque, loaded
+.
+
+! LaTeX Error: Missing \begin{document}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.1 i
+     mport math, sys
+? 
+! Emergency stop.
+ ...                                              
+                                                  
+l.1 i
+     mport math, sys
+You're in trouble here.  Try typing  <return>  to proceed.
+If that doesn't work, type  X <return>  to quit.
+
+ 
+Here is how much of TeX's memory you used:
+ 8 strings out of 493945
+ 351 string characters out of 6159096
+ 47950 words of memory out of 5000000
+ 3350 multiletter control sequences out of 15000+600000
+ 3640 words of font info for 14 fonts, out of 8000000 for 9000
+ 774 hyphenation exceptions out of 8191
+ 5i,0n,4p,62b,14s stack positions out of 5000i,500n,10000p,200000b,80000s
+!  ==> Fatal error occurred, no output PDF file produced!
