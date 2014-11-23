@@ -1,8 +1,11 @@
 import math, sys
+import subprocess
 
+import maya.mel as mel
 import maya.cmds as cmds
 
 import maya.OpenMaya as OpenMaya
+import maya.OpenMayaUI as OpenMayaUI
 import maya.OpenMayaAnim as OpenMayaAnim
 import maya.OpenMayaMPx as OpenMayaMPx
 
@@ -57,10 +60,8 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 			while not mIter.isDone():
 				obj = mIter.thisNode()
 				objectType = obj.apiTypeStr()
-
 				#if (objectType ==  "kLambert"):
 				#	fileHandle.write("# "+materialStr(obj)+"\n")
-
 				mIter.next()
 
 			# iterate over dag nodes
@@ -85,37 +86,66 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 						dnFn = OpenMaya.MFnPointLight( object )
 						lightStr += self.lightStr(dnFn)
 
+					# spot light source
+					if (objectType ==  "kSpotLight"):
+						dnFn = OpenMaya.MFnSpotLight( object )
+						lightStr += self.spotlightStr(dnFn)
+
+					# directional light source
+					if (objectType ==  "kDirectionalLight"):
+						dnFn = OpenMaya.MFnDirectionalLight( object )
+						lightStr += self.dirlightStr(dnFn)
+
+					# area source
+					if (objectType ==  "kAreaLight"):
+						dnFn = OpenMaya.MFnAreaLight( object )
+						lightStr += self.areaLightStr(dnFn)
+
 					if (objectType ==  "kTransform"):
 						self.currentTransform = OpenMaya.MFnTransform( object )
 						#fileHandle.write( "# .. "+str(matrix)+"\n" )
-
-					# camera position and direction
-					if (objectType ==  "kCamera" and objectName == "perspShape"):	
-						dnFn = OpenMaya.MFnCamera( object )
-						cameraStr += self.cameraStr(dnFn)
 
 				except:
 					raise
 				iterator.next()
 
+			# camera position and direction
+			activeView = OpenMayaUI.M3dView.active3dView()
+			object = OpenMaya.MDagPath()
+			activeView.getCamera(object)
+			dnFn = OpenMaya.MFnCamera( object )
+			cameraStr += self.cameraStr(dnFn)
+
+
 			fileHandle.write("\n\n# RENDER\n")
+			
+			fileHandle.write("Scale -1 1 1\n")
+
 			fileHandle.write("Film \"image\" \"string filename\" [\"test.exr\"]")
 			fileHandle.write("\"integer xresolution\" [960] \"integer yresolution\" [540]\n")
 			
-
 			fileHandle.write("Renderer \"sampler\"\n\n")
-
 			fileHandle.write( cameraStr )
-			#fileHandle.write("LookAt 0 .2 .2    -.02 .1 0  0 1 0\n")
-			
 
 			fileHandle.write("WorldBegin\n\n")
-
 			fileHandle.write( lightStr )
-
 			fileHandle.write( meshStr )
 			fileHandle.write("WorldEnd\n")
 			fileHandle.close()
+
+			#cb = mel.eval("$temp=$display_output")
+			#sys.stderr.write( "cb = %s\n" % cb)
+
+			#p = subprocess.Popen('pbrt test.pbrt', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			#for line in p.stdout.readlines():
+			#	print line
+			#retval = p.wait()
+
+			#p = subprocess.Popen('exrdisplay test.exr', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+			#for line in p.stdout.readlines():
+			#	print line
+			#retval = p.wait()
+
 		except:
 			sys.stderr.write( "Failed to write file information\n")
 			raise
@@ -125,21 +155,76 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 
 	def lightStr(self, dnFn):
 		# float intensity
-		intensity = dnFn.intensity() * 20
+		intensity = dnFn.intensity()
 		rgb = [intensity] * 3
+		colour = dnFn.color()
+		for x in range( 0, 3 ):
+			rgb[x] = rgb[x] * colour[x]
+
+
 		position = self.currentTransform.transformation().getTranslation(OpenMaya.MSpace.kWorld)
 
-		lStr = "# LIGHT\n"
+		lStr = "# POINT LIGHT\n"
 		lStr += "AttributeBegin\n"
 		lStr += "LightSource \"point\" \"rgb I\" ["+str(rgb[0])+" "+str(rgb[1])+" "+str(rgb[2])+" "+"] "
 		lStr += "\"point from\" ["+str( self.point3Str(position) )+"]\n"
 		lStr += "AttributeEnd\n\n"
+		return lStr
 
-		return lStr;
+	def spotlightStr(self, dnFn):
+		# float intensity
+		intensity = dnFn.intensity()
+		rgb = [intensity] * 3
+		colour = dnFn.color()
+		for x in range( 0, 3 ):
+			rgb[x] = rgb[x] * colour[x]
+
+		# position and direction
+		transform = self.currentTransform.transformation().asMatrix()
+
+		lStr = "# SPOT LIGHT\n"
+		lStr += "AttributeBegin\n"
+		lStr += "Transform ["
+		for x in range( 0, 4 ):
+			for y in range( 0, 4 ): 
+				lStr += str(transform(x, y)) + " "
+		lStr += "]\n"
+
+		lStr += "LightSource \"spot\" \"rgb I\" ["+str(rgb[0])+" "+str(rgb[1])+" "+str(rgb[2])+" "+"] "
+		lStr += "\"point from\" [0 0 0]\n"
+		lStr += "\"point to\" [0 0 -1]\n"
+		lStr += "\"float coneangle\" ["+str( math.degrees(dnFn.coneAngle() / 2) )+"]\n"
+		lStr += "\"float conedeltaangle\" ["+str( math.degrees(dnFn.penumbraAngle() / 2) )+"]\n"
+		lStr += "AttributeEnd\n\n"
+		return lStr
+
+	def dirlightStr(self, dnFn):
+		# float intensity
+		intensity = dnFn.intensity()
+		rgb = [intensity] * 3
+		colour = dnFn.color()
+		for x in range( 0, 3 ):
+			rgb[x] = rgb[x] * colour[x]
+		direction = dnFn.lightDirection(0, OpenMaya.MSpace.kWorld)
+
+		lStr = "# DIRECTIONAL LIGHT\n"
+		lStr += "AttributeBegin\n"
+		lStr += "LightSource \"distant\" \"rgb I\" ["+str(rgb[0])+" "+str(rgb[1])+" "+str(rgb[2])+" "+"] "
+		lStr += "\"point from\" ["+str( self.point3Str(position) )+"]\n"
+		lStr += "AttributeEnd\n\n"
+		return lStr
+
+	def areaLightStr(self, dnFn):
+		lStr = "# AREA LIGHT\n"
+		lStr += "AttributeBegin\n"
+		lStr += "AreaLightSource \"diffuse\" \"rgb L\" [ 10.5 10.5 10.5 ]\n"
+		lStr += "Translate 0 10 0\n"
+		lStr += "Shape \"sphere\" \"float radius\" [.25]\n"
+		lStr += "AttributeEnd\n\n"
+		return lStr
+
 
 	def cameraStr(self, dnFn):
-		# "LookAt 0 .2 .2    -.02 .1 0  0 1 0\n"
-
 		camStr = "# CAMERA\n"
 		camStr += "LookAt "
 
@@ -153,10 +238,12 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 		camStr += self.point3Str(eyeUp)
 		camStr += "\n"
 
-		# convert to degrees
-		fov = math.degrees( dnFn.horizontalFieldOfView() / 2 )
-
-		camStr += "Camera \"perspective\" \"float fov\" ["+str(fov)+"]\n\n"
+		if ( dnFn.isOrtho() ):
+			camStr += "Camera \"orthographic\"\n\n"
+		else:
+			# convert to degrees
+			fov = math.degrees( dnFn.horizontalFieldOfView() / 2 )
+			camStr += "Camera \"perspective\" \"float fov\" ["+str(fov)+"]\n\n"
 		return camStr;
 
 	def meshStr(self, oIn):
@@ -202,19 +289,22 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 		vertexList = OpenMaya.MIntArray()
 		dnFn.getVertices(vertexCount, vertexList)
 
+
+		# get the points and normals in world space
+		# kWorld applies all transformations in the dag path
 		vertexArray = OpenMaya.MPointArray()
 		dnFn.getPoints(vertexArray, OpenMaya.MSpace.kWorld)
 
 		index_str = ""
 		vert_str = ""
 		normal_str = ""
+		uv_str = ""
 		count = 0
 
+		#	find attributes of each vertex
 		numpolys = dnFn.numPolygons()
 		for p in range( 0, numpolys ):
 			trisInPoly = triangleCounts[p]
-			pbrtshape += "# tcounts = "+str(trisInPoly)+"\n"
-
 			for tri in range( 0, triangleCounts[p] ):
 
 				# get 3 verts for the triangle
@@ -226,20 +316,22 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 				# each vert in the triangle
 				for vv in range( 0, 3 ):
 					vertid = OpenMaya.MScriptUtil.getIntArrayItem(ptr, vv)
-					vnorm = OpenMaya.MVector()
-					#vpos = OpenMaya.MPoint()
-
-					# get the points and normals in world space
-					# kWorld applies all transformations in the dag path
-					dnFn.getFaceVertexNormal(p, vertid, vnorm, OpenMaya.MSpace.kWorld)
-					#dnFn.getPoint(vertid, vpos, OpenMaya.MSpace.kWorld)
 					vpos = vertexArray[vertid]
 
+					vnorm = OpenMaya.MVector()
+					dnFn.getFaceVertexNormal(p, vertid, vnorm, OpenMaya.MSpace.kWorld)
+				
+					# get uv
+					uvPoint = OpenMaya.MScriptUtil()
+					uvPoint.createFromList((0.0,0.0),2)
+					uvPointPtr = uvPoint.asFloat2Ptr()
+					dnFn.getUVAtPoint(vpos, uvPointPtr)
 
 					index_str += str(count) + " "
 					vert_str += self.point3Str(vpos)
 					normal_str += self.point3Str(vnorm)
-					pbrtshape += "# ii === "+str(vertid)+" "+str(triangleVertices[count])+"\n"
+					uv_str += OpenMaya.MScriptUtil.getFloatArrayItem(uvPointPtr, 0)+" "
+					uv_str += OpenMaya.MScriptUtil.getFloatArrayItem(uvPointPtr, 1)+" "
 					count = count + 1
 
 		pbrtshape += "Shape \"trianglemesh\" \"integer indices\" ["
@@ -260,12 +352,17 @@ class pbrtExport(OpenMayaMPx.MPxFileTranslator):
 		pbrtshape += normal_str
 		pbrtshape += "]\n\n"
 
+		# uvs
+		pbrtshape += "\"float uv\" ["
+		pbrtshape += uv_str
+		pbrtshape += "]\n\n"
+
 		# return string
 		return pbrtshape;
 
 	def point3Str(self, vectorIn):
 		vec = ""
-		vec += str(-vectorIn[0]) + " "
+		vec += str(vectorIn[0]) + " "
 		vec += str(vectorIn[1]) + " "
 		vec += str(vectorIn[2]) + " "
 		return vec;
@@ -278,7 +375,9 @@ def translatorCreator():
 def initializePlugin(mobject):
 	mplugin = OpenMayaMPx.MFnPlugin(mobject)
 	try:
-		mplugin.registerFileTranslator( kPluginTypeName, None, translatorCreator )
+		# gui
+		#file = open("/u/students/remnanjona/git/MayaPBRT/exportOptions.mel", "r")
+		mplugin.registerFileTranslator( kPluginTypeName, None, translatorCreator ) #, file.read()
 	except:
 		sys.stderr.write( "Failed to register node: %s\n" % kPluginTypeName )
 		raise

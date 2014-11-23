@@ -1,0 +1,28 @@
+// a function to be called when the checkbox gets checked.
+global proc on_func() {
+	print(" checkbox on!\n");
+	global int $display_output = 66;
+}
+
+// a function to be called when the checkbox gets unchecked.
+global proc off_func() {
+	print(" checkbox off!\n");
+	global int $display_output = 356;
+}
+
+{
+	// define the layout of controls added 
+	// to the window.
+	columnLayout;
+			
+
+	// create button
+	button -label "button1";
+
+	checkBox -label "run pbrt" 
+		-onCommand "on_func" 
+		-offCommand "off_func";
+
+	// to get the current value of the checkBox, use the -query flag
+	// $value = 'checkBox -query -value $c';
+}
